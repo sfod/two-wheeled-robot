@@ -29,11 +29,10 @@ private:
     void set_speed_left(double w);
     void set_speed_right(double w);
 
-    bool turn(double theta, long ms);
-    bool move(Coordinate coordinate, long ms);
+    bool turn(double theta, long us);
+    bool move(Coordinate coordinate, long us);
 
     double calc_theta(Coordinate coordinate) const;
-    double calc_delta_theta(Coordinate coordinate) const;
 
 private:
     bool active_ = false;
@@ -44,9 +43,6 @@ private:
 
     Wheel left_wheel_;
     Wheel right_wheel_;
-
-    double max_speed_;
-    double acceleration_;
 
     std::mutex m_;
     std::thread t_;
