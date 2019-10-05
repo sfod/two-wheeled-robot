@@ -1,9 +1,9 @@
 #pragma once
 
+#include <deque>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <vector>
 
 #include "coordinate.hpp"
 #include "task.hpp"
@@ -29,7 +29,11 @@ private:
     void set_speed_left(double w);
     void set_speed_right(double w);
 
-    void turn(double theta);
+    bool turn(double theta, long ms);
+    bool move(Coordinate coordinate, long ms);
+
+    double calc_theta(Coordinate coordinate) const;
+    double calc_delta_theta(Coordinate coordinate) const;
 
 private:
     bool active_ = false;
@@ -37,7 +41,6 @@ private:
     bool target_set_ = false;
 
     Coordinate current_coordinate_;
-    Coordinate target_coordinate_;
 
     Wheel left_wheel_;
     Wheel right_wheel_;
@@ -48,7 +51,7 @@ private:
     std::mutex m_;
     std::thread t_;
 
-    std::vector<std::shared_ptr<Task>> tasks_;
+    std::deque<std::shared_ptr<Task>> tasks_;
 };
 
 }
