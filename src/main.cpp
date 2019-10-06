@@ -30,6 +30,7 @@ bool init(int argc, char **argv, ServerConfig &server_config, twr::RobotConfig &
         json.at("robot").at("wheels-distance").get_to(robot_config.wheels_distance);
         json.at("robot").at("max-speed").get_to(robot_config.max_speed);
         json.at("robot").at("acceleration").get_to(robot_config.acceleration);
+        json.at("robot").at("accuracy").get_to(robot_config.accuracy);
     }
     catch (std::exception &e) {
         std::cerr << "Failed to parse config file: " << e.what() << "\n";

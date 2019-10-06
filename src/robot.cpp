@@ -201,7 +201,8 @@ bool Robot::turn(double target_theta, long us)
 
     current_coordinate_.set_theta(new_theta);
 
-    return std::abs(new_theta - target_theta) < 0.00001;
+    /// NOTE The accuracy of the first turn is highly important, it's better to set it internally.
+    return std::abs(new_theta - target_theta) < robot_config_.accuracy;
 }
 
 bool Robot::move(std::shared_ptr<MoveTask> task, long us)
@@ -230,8 +231,7 @@ bool Robot::move(std::shared_ptr<MoveTask> task, long us)
     current_coordinate_.set_x(new_x);
     current_coordinate_.set_y(new_y);
 
-    // FIXME Pass accuracy.
-    return dist < 0.001;
+    return dist < robot_config_.accuracy;
 }
 
 double Robot::calc_theta(const Coordinate &coordinate) const

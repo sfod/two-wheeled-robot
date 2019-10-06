@@ -7,6 +7,7 @@ struct RobotConfig {
     double wheels_distance;
     double max_speed;
     double acceleration;
+    double accuracy;
 };
 
 }
