@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "coordinate.hpp"
+#include "robot_config.hpp"
 #include "task.hpp"
 #include "wheel.hpp"
 
@@ -14,7 +15,7 @@ namespace twr {
 
 class Robot {
 public:
-    Robot(double radius, double max_speed, double acceleration);
+    explicit Robot(RobotConfig config);
     ~Robot();
 
     void set_target(Coordinate coordinate);
@@ -22,6 +23,10 @@ public:
     void pause();
     void resume();
     std::string status();
+
+    bool is_target_set() const;
+
+    void turnoff();
 
 private:
     void run();

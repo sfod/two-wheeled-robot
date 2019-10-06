@@ -5,8 +5,7 @@
 
 namespace twr {
 
-Wheel::Wheel(double radius, double max_speed, double acceleration)
-        : radius_(radius), max_speed_(max_speed), acceleration_(acceleration)
+Wheel::Wheel(RobotConfig config) : config_(config)
 {
 }
 
@@ -17,12 +16,12 @@ void Wheel::set_target_speed(double speed)
 
 double Wheel::max_speed() const
 {
-    return max_speed_;
+    return config_.max_speed;
 }
 
 double Wheel::acceleration() const
 {
-    return acceleration_;
+    return config_.acceleration;
 }
 
 double Wheel::current_speed() const
@@ -47,18 +46,18 @@ double Wheel::distance(long us)
 
     double v = current_speed_;
 
-    current_speed_ += acceleration_ * s;
-    if (current_speed_ == max_speed_) {
-        current_speed_ = max_speed_;
+    current_speed_ += config_.acceleration * s;
+    if (current_speed_ == config_.max_speed) {
+        current_speed_ = config_.max_speed;
     }
 
     double dist = 0.0;
     /// Use linear motion formula when robot reaches max speed.
-    if (v == max_speed_) {
+    if (v == config_.max_speed) {
         dist = v * s;
     }
     else {
-        dist = acceleration_ * pow(s, 2) / 2.0 + v * s;
+        dist = config_.acceleration * pow(s, 2) / 2.0 + v * s;
     }
 
     return dist;

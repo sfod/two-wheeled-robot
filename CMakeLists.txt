@@ -15,5 +15,5 @@ else()
     message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 endif()
 
-add_executable(${PROJECT_NAME} src/main.cpp src/robot.cpp src/robot.hpp src/coordinate.cpp src/coordinate.hpp src/wheel.cpp src/wheel.hpp src/task.cpp src/task.hpp)
+add_executable(${PROJECT_NAME} src/main.cpp src/robot.cpp src/robot.hpp src/coordinate.cpp src/coordinate.hpp src/wheel.cpp src/wheel.hpp src/task.cpp src/task.hpp src/robot_config.hpp)
 target_link_libraries(${PROJECT_NAME} pthread)

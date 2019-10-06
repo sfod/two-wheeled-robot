@@ -1,10 +1,13 @@
 #pragma once
 
+#include "robot_config.hpp"
+
+
 namespace twr {
 
 class Wheel {
 public:
-    Wheel(double radius, double max_speed, double acceleration);
+    Wheel(RobotConfig config);
 
     void set_target_speed(double speed);
 
@@ -18,9 +21,7 @@ public:
     void stop();
 
 private:
-    double radius_;
-    double max_speed_;
-    double acceleration_;
+    RobotConfig config_;
     double current_speed_ = 0.0;
     double target_speed_ = 0.0;
 };

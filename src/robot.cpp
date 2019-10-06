@@ -10,9 +10,7 @@
 
 namespace twr {
 
-Robot::Robot(double radius, double max_speed, double acceleration)
-        : current_coordinate_(0.0, 0.0, 0.0),
-        left_wheel_(radius, max_speed, acceleration), right_wheel_(radius, max_speed, acceleration)
+Robot::Robot(RobotConfig config) : current_coordinate_(0.0, 0.0, 0.0), left_wheel_(config), right_wheel_(config)
 {
     t_ = std::thread(&Robot::run, this);
 }
@@ -76,6 +74,16 @@ std::string Robot::status()
             + ", " + std::to_string(current_coordinate_.theta()) + ", " + std::to_string(0);
 }
 
+bool Robot::is_target_set() const
+{
+    return target_set_;
+}
+
+void Robot::turnoff()
+{
+    active_ = false;
+}
+
 void Robot::run()
 {
     using namespace std::chrono_literals;
@@ -114,7 +122,8 @@ void Robot::run()
 
             if (moving_ && tasks_.empty()) {
                 std::cout << "Target reached\n";
-                active_ = false; // FIXME
+                target_set_ = false;
+                moving_ = false;
             }
         }
 
@@ -173,6 +182,7 @@ bool Robot::move(Coordinate coordinate, long us)
     current_coordinate_.set_x(new_x);
     current_coordinate_.set_y(new_y);
 
+    // FIXME Pass accuracy.
     return dist < 0.001;
 }
 
