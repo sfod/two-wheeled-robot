@@ -1,6 +1,5 @@
 #include "robot.hpp"
 
-#include <cassert>
 #include <cmath>
 
 #include <chrono>
@@ -10,48 +9,53 @@
 
 namespace twr {
 
-Robot::Robot(RobotConfig config) : current_coordinate_(0.0, 0.0, 0.0), left_wheel_(config), right_wheel_(config)
+Robot::Robot(RobotConfig config)
+        : current_coordinate_(0.0, 0.0, 0.0), left_wheel_(config), right_wheel_(config), robot_config_(config)
 {
-    t_ = std::thread(&Robot::run, this);
 }
 
 Robot::~Robot()
 {
-    t_.join();
+    if (t_.joinable()) {
+        t_.join();
+    }
 }
 
-void Robot::set_target(Coordinate coordinate)
+void Robot::turn_on()
+{
+    active_ = true;
+    t_ = std::thread(&Robot::run, this);
+}
+
+void Robot::set_target(Coordinate coordinate, double max_speed, double acceleration)
 {
     std::lock_guard lock(m_);
-
-    if (target_set_) {
-        throw std::runtime_error("target is already set");
-    }
-
-    tasks_.clear();
-
-    double theta = calc_theta(coordinate);
-    tasks_.emplace_back(std::make_shared<TurnTask>(TurnTask(theta)));
-    tasks_.emplace_back(std::make_shared<MoveTask>(MoveTask(coordinate)));
-    tasks_.emplace_back(std::make_shared<TurnTask>(TurnTask(coordinate.theta())));
-
-    moving_ = true;
-    target_set_ = true;
+    targets_.emplace_back(std::make_shared<Target>(coordinate, max_speed, acceleration));
 }
 
 void Robot::stop()
 {
     std::lock_guard lock(m_);
 
+    left_wheel_.stop();
+    right_wheel_.stop();
+
     moving_ = false;
     target_set_ = false;
 
+    /// Remove all targets.
+    targets_.clear();
+
+    /// Remove all internal tasks.
     tasks_.clear();
 }
 
 void Robot::pause()
 {
     std::lock_guard lock(m_);
+
+    left_wheel_.stop();
+    right_wheel_.stop();
 
     moving_ = false;
 }
@@ -60,10 +64,15 @@ void Robot::resume()
 {
     std::lock_guard lock(m_);
 
-    if (!target_set_) {
-        throw std::runtime_error("target is not set");
+    if (target_set_) {
+        moving_ = true;
     }
-    moving_ = true;
+}
+
+void Robot::turn_off()
+{
+    stop();
+    active_ = false;
 }
 
 Coordinate Robot::current_coordinate() const
@@ -76,48 +85,52 @@ std::pair<double, double> Robot::speed() const
     return {left_wheel_.current_speed(), right_wheel_.current_speed()};
 }
 
-bool Robot::is_moving() const
-{
-    return moving_;
-}
-
-bool Robot::is_target_set() const
-{
-    return target_set_;
-}
-
-void Robot::turnoff()
-{
-    active_ = false;
-}
-
 void Robot::run()
 {
     using namespace std::chrono_literals;
 
     static constexpr auto period = 100us;
 
-    std::cout << "Starting...\n";
-    active_ = true;
-
     auto start = std::chrono::steady_clock::now();
     auto target_time = start + period;
 
     while (active_) {
         // TODO Split into separate methods.
-        {
+        try {
+            if (tasks_.empty()) {
+                generate_tasks();
+            }
+
             std::lock_guard lock(m_);
+
             if (moving_ && !tasks_.empty()) {
                 auto task = tasks_.front();
                 if (auto turn_task = std::dynamic_pointer_cast<TurnTask>(task)) {
+                    left_wheel_.set_max_speed(turn_task->max_speed());
+                    left_wheel_.set_acceleration(turn_task->acceleration());
+
+                    right_wheel_.set_max_speed(turn_task->max_speed());
+                    right_wheel_.set_acceleration(turn_task->acceleration());
+
                     if (turn(turn_task->theta(), period.count())) {
                         std::cout << "Turn was completed successfully\n";
+
+                        left_wheel_.stop();
+                        right_wheel_.stop();
+
                         tasks_.pop_front();
                     }
                 }
                 else if (auto move_task = std::dynamic_pointer_cast<MoveTask>(task)) {
-                    if (move(move_task->coordinate(), period.count())) {
+                    left_wheel_.set_max_speed(move_task->max_speed());
+                    left_wheel_.set_acceleration(move_task->acceleration());
+
+                    right_wheel_.set_max_speed(move_task->max_speed());
+                    right_wheel_.set_acceleration(move_task->acceleration());
+
+                    if (move(move_task, period.count())) {
                         std::cout << "Reached destination\n";
+
                         /// A very non-realistic assumption that robot can come to a complete stop immediately.
                         left_wheel_.stop();
                         right_wheel_.stop();
@@ -133,58 +146,86 @@ void Robot::run()
                 moving_ = false;
             }
         }
+        catch (std::exception &e) {
+            std::cerr << "Error occurred: " << e.what() << "\n";
+        }
 
         std::this_thread::sleep_until(target_time);
         target_time += period;
     }
 }
 
-void Robot::set_speed_left(double w)
+void Robot::generate_tasks()
 {
-    left_wheel_.set_target_speed(w);
-}
+    std::lock_guard lock(m_);
 
-void Robot::set_speed_right(double w)
-{
-    right_wheel_.set_target_speed(w);
+    if (targets_.empty()) {
+        return;
+    }
+
+    auto target = targets_.front();
+    targets_.pop_front();
+
+    double theta = calc_theta(target->target());
+
+    tasks_.emplace_back(std::make_shared<TurnTask>(TurnTask(theta)));
+    tasks_.emplace_back(std::make_shared<MoveTask>(MoveTask(current_coordinate_, target->target(), target->max_speed(), target->acceleration())));
+    tasks_.emplace_back(std::make_shared<TurnTask>(TurnTask(target->target().theta())));
+
+    moving_ = true;
+    target_set_ = true;
 }
 
 bool Robot::turn(double target_theta, long us)
 {
-    assert(target_theta >= -M_PI && target_theta <= M_PI);
+    left_wheel_.rotate(Wheel::Direction::FORWARD);
+    right_wheel_.rotate(Wheel::Direction::BACKWARD);
+
+    left_wheel_.update(us);
+    right_wheel_.update(us);
 
     double s = static_cast<double>(us) / 1000000.0;
 
-    // FIXME Calculate speed.
-    // FIXME Turn to the nearest direction.
-    double v = 1.0;
-    if (target_theta < current_coordinate_.theta()) {
-        v = -v;
+    double left_v = left_wheel_.current_speed();
+    double right_v = right_wheel_.current_speed();
+
+    if (std::abs(left_v) - std::abs(right_v) > 0.001) {
+        throw std::runtime_error("wheels are out of sync with each other: "
+                + std::to_string(left_v) + " and " + std::to_string(right_v));
     }
 
-    // FIXME Pass wheel base.
-    double l = 20.0;
-    double new_theta = current_coordinate_.theta() + 2 * v * s / l;
-
-    std::cout << "Current theta is " << new_theta << ", target theta is " << target_theta << "\n";
+    double new_theta = current_coordinate_.theta() + 2 * left_v * s / robot_config_.wheels_distance;
+    if (new_theta > M_PI) {
+        new_theta -= 2 * M_PI;
+    }
 
     current_coordinate_.set_theta(new_theta);
 
     return std::abs(new_theta - target_theta) < 0.00001;
 }
 
-bool Robot::move(Coordinate coordinate, long us)
+bool Robot::move(std::shared_ptr<MoveTask> task, long us)
 {
-    double wheel_dist = left_wheel_.distance(us);
+    left_wheel_.rotate(Wheel::Direction::FORWARD);
+    right_wheel_.rotate(Wheel::Direction::FORWARD);
 
-    double new_x = current_coordinate_.x() + cos(current_coordinate_.theta()) * wheel_dist;
-    double new_y = current_coordinate_.y() + sin(current_coordinate_.theta()) * wheel_dist;
+    double left_wheel_dist = left_wheel_.distance(us);
+    double right_wheel_dist = right_wheel_.distance(us);
 
-    std::cout << "Current coord is " << new_x << ":" << new_y
-            << ", target coord is " << coordinate.x() << ":" << coordinate.y()
-            << ", speed is " << left_wheel_.current_speed() << "\n";
+    if (std::abs(left_wheel_dist - right_wheel_dist) > 0.001) {
+        throw std::runtime_error("robot got off the course");
+    }
 
-    double dist = sqrt(pow(coordinate.x() - new_x, 2) + pow(coordinate.y() - new_y, 2));
+    double new_x = current_coordinate_.x() + cos(current_coordinate_.theta()) * left_wheel_dist;
+    double new_y = current_coordinate_.y() + sin(current_coordinate_.theta()) * right_wheel_dist;
+
+    double dist = sqrt(pow(task->coordinate().x() - new_x, 2) + pow(task->coordinate().y() - new_y, 2));
+    if (dist > task->distance()) {
+        std::cout << "Robot is moving away from the destination\n";
+        return true;
+    }
+
+    task->set_distance(dist);
 
     current_coordinate_.set_x(new_x);
     current_coordinate_.set_y(new_y);
@@ -193,7 +234,7 @@ bool Robot::move(Coordinate coordinate, long us)
     return dist < 0.001;
 }
 
-double Robot::calc_theta(Coordinate coordinate) const
+double Robot::calc_theta(const Coordinate &coordinate) const
 {
     double y_diff = coordinate.y() - current_coordinate_.y();
     double x_diff = coordinate.x() - current_coordinate_.x();

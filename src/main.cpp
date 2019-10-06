@@ -50,20 +50,16 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    twr::Robot robot(robot_config);
+
     try {
-        twr::Robot robot(robot_config);
+        robot.turn_on();
 
         server.Post("/goto", [&robot](const httplib::Request &req, httplib::Response &resp) {
-            if (robot.is_target_set()) {
-                resp.status = 409;
-                resp.set_content("Conflict", "text/plain");
-                return;
-            }
-
             try {
                 auto json = nlohmann::json::parse(req.body);
                 twr::Coordinate target{json.at("x"), json.at("y"), json.at("theta")};
-                robot.set_target(target);
+                robot.set_target(target, json.at("max-speed"), json.at("acceleration"));
             }
             catch (std::exception &e) {
                 std::cerr << "Invalid request: " << req.body << ", error: " << e.what() << "\n";
@@ -81,18 +77,10 @@ int main(int argc, char **argv)
             robot.pause();
         });
 
-        server.Get("/resume", [&robot]([[maybe_unused]] const httplib::Request &req, httplib::Response &resp) {
-            if (robot.is_target_set()) {
-                robot.resume();
-            }
-            else {
-                resp.status = 409;
-                resp.set_content("Conflict", "text/plain");
-                return;
-            }
+        server.Get("/resume", [&robot]([[maybe_unused]] const httplib::Request &req, [[maybe_unused]] httplib::Response &resp) {
+            robot.resume();
         });
 
-        // TODO Return JSON.
         server.Get("/status", [&robot]([[maybe_unused]] const httplib::Request &req, httplib::Response &resp) {
             auto coord = robot.current_coordinate();
             auto wheels_speed = robot.speed();
@@ -109,11 +97,11 @@ int main(int argc, char **argv)
         });
 
         server.Get("/turnoff", [&server, &robot]([[maybe_unused]] const httplib::Request &req, [[maybe_unused]] httplib::Response &resp) {
-            robot.turnoff();
+            robot.turn_off();
             server.stop();
         });
 
-        std::cout << "Listen at 5001\n";
+        std::cout << "Listen at " << server_config.port << "\n";
         server.listen("0.0.0.0", server_config.port);
     }
     catch (std::exception &e) {
