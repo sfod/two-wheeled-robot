@@ -66,12 +66,19 @@ void Robot::resume()
     moving_ = true;
 }
 
-std::string Robot::status()
+Coordinate Robot::current_coordinate() const
 {
-    std::lock_guard lock(m_);
+    return current_coordinate_;
+}
 
-    return std::to_string(current_coordinate_.x()) + ":" + std::to_string(current_coordinate_.y())
-            + ", " + std::to_string(current_coordinate_.theta()) + ", " + std::to_string(0);
+std::pair<double, double> Robot::speed() const
+{
+    return {left_wheel_.current_speed(), right_wheel_.current_speed()};
+}
+
+bool Robot::is_moving() const
+{
+    return moving_;
 }
 
 bool Robot::is_target_set() const

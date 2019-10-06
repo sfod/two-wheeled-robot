@@ -22,8 +22,11 @@ public:
     void stop();
     void pause();
     void resume();
-    std::string status();
 
+    Coordinate current_coordinate() const;
+    std::pair<double, double> speed() const;
+
+    bool is_moving() const;
     bool is_target_set() const;
 
     void turnoff();

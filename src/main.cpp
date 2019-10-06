@@ -81,13 +81,31 @@ int main(int argc, char **argv)
             robot.pause();
         });
 
-        server.Get("/resume", [&robot]([[maybe_unused]] const httplib::Request &req, [[maybe_unused]] httplib::Response &resp) {
-            robot.resume();
+        server.Get("/resume", [&robot]([[maybe_unused]] const httplib::Request &req, httplib::Response &resp) {
+            if (robot.is_target_set()) {
+                robot.resume();
+            }
+            else {
+                resp.status = 409;
+                resp.set_content("Conflict", "text/plain");
+                return;
+            }
         });
 
         // TODO Return JSON.
         server.Get("/status", [&robot]([[maybe_unused]] const httplib::Request &req, httplib::Response &resp) {
-            resp.set_content(robot.status(), "text/plain");
+            auto coord = robot.current_coordinate();
+            auto wheels_speed = robot.speed();
+
+            nlohmann::json json = {
+                    { "x", coord.x() },
+                    { "y", coord.y() },
+                    { "theta", coord.theta() },
+                    { "left-wheel-speed", wheels_speed.first },
+                    { "right-wheel-speed", wheels_speed.second }
+            };
+
+            resp.set_content(json.dump(), "application/json");
         });
 
         server.Get("/turnoff", [&server, &robot]([[maybe_unused]] const httplib::Request &req, [[maybe_unused]] httplib::Response &resp) {
