@@ -53,9 +53,15 @@ Robot receives commands via HTTP API
   curl -i '127.0.0.1:5001/status'
   ```
 
-### TODOs
+### TODOs and Thoughts
 
 1. Robot sets orientation with some inaccuracy. When it moves toward the target inaccuracy increases, so it's possible to drive past the target.\
-   The solution is to periodically correct the course during movement.
+   The solution is to periodically correct the course during the movement.
 
-2. Wheel class works with a linear speed. It should work with angular speed instead.
+2. The Wheel class works with a linear speed. It should work with angular speed instead.
+
+3. Use strong types (e.g. Meter, MeterPerSec).
+
+4. I'd use POST with /stop request as it changes the state of the robot.
+
+5. Probably it'll be better to remove sleep() statement from the main loop: the app will consume 100% CPU but accuracy of the movements will improve. Or calculate sleep period by the specified accuracy.
